@@ -1,0 +1,6 @@
+<Project>
+    <PropertyGroup>
+        <!-- Set this to your Nuclear Option installation directory -->
+        <GameDir>E:\Games\NuclearOption</GameDir>
+    </PropertyGroup>
+</Project>

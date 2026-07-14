@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+        <AssemblyName>NOSMR</AssemblyName>
+        <RootNamespace>NOSMR</RootNamespace>
+        <Version>1.0.0</Version>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+
+        <RestoreAdditionalProjectSources>
+            https://api.nuget.org/v3/index.json;
+            https://nuget.bepinex.dev/v3/index.json
+        </RestoreAdditionalProjectSources>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
+        <PackageReference Include="BepInEx.Core" Version="5.*"/>
+        <PackageReference Include="BepInEx.PluginInfoProps" Version="1.*"/>
+        <PackageReference Include="Newtonsoft.Json" Version="13.*"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="UnityEngine"
+                   HintPath="$(GameDir)\NuclearOptionServer_Data\Managed\UnityEngine.dll"
+                   Private="False"/>
+        <Reference Include="UnityEngine.CoreModule"
+                   HintPath="$(GameDir)\NuclearOptionServer_Data\Managed\UnityEngine.CoreModule.dll"
+                   Private="False"/>
+        <Reference Include="com.rlabrecque.steamworks.net"
+                   HintPath="$(GameDir)\NuclearOptionServer_Data\Managed\com.rlabrecque.steamworks.net.dll"
+                   Private="False"/>
+        <Reference Include="System.IO.Compression"
+                   HintPath="$(GameDir)\NuclearOptionServer_Data\Managed\System.IO.Compression.dll"
+                   Private="False"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all"/>
+    </ItemGroup>
+</Project>

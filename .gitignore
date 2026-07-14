@@ -1,0 +1,19 @@
+# Build outputs
+bin/
+obj/
+
+# Local game path configuration
+Directory.Build.props
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+.DS_Store
+/Example Dedicated Server
+*.nommpack
+pwrshell scripts/query.ps1
