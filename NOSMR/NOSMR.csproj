@@ -8,6 +8,10 @@
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
 
+        <BepInExPluginGuid>gerryofravine.nosmr</BepInExPluginGuid>
+        <BepInExPluginName>NOSMR</BepInExPluginName>
+        <BepInExPluginVersion>1.0.0</BepInExPluginVersion>
+
         <RestoreAdditionalProjectSources>
             https://api.nuget.org/v3/index.json;
             https://nuget.bepinex.dev/v3/index.json
@@ -18,7 +22,6 @@
         <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
         <PackageReference Include="BepInEx.Core" Version="5.*"/>
         <PackageReference Include="BepInEx.PluginInfoProps" Version="1.*"/>
-        <PackageReference Include="Newtonsoft.Json" Version="13.*"/>
     </ItemGroup>
 
     <ItemGroup>

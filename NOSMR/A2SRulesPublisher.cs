@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
-using Newtonsoft.Json;
 using Steamworks;
 
 namespace NOSMR;
@@ -28,11 +27,6 @@ public class A2SRulesPublisher
     private const string ProtocolVersion = "1";
     private const double RepublishIntervalSeconds = 30.0;
 
-    private static readonly JsonSerializerSettings SerializerSettings = new()
-    {
-        NullValueHandling = NullValueHandling.Ignore,
-    };
-
     private readonly ConcurrentQueue<(string key, string? value)> _queue = new();
     private readonly FileLogger? _logger;
     private bool _loggedOn;
@@ -55,7 +49,7 @@ public class A2SRulesPublisher
         List<PackageReference> modlist,
         HashSet<string>? requiredMods = null)
     {
-        var dataJson = JsonConvert.SerializeObject(modlist, Formatting.None, SerializerSettings);
+        var dataJson = PackageReference.SerializeList(modlist);
         var hash = ComputeHash(dataJson);
 
         var requiredIds = requiredMods != null && requiredMods.Count > 0

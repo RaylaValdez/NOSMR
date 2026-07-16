@@ -7,11 +7,15 @@ using UnityEngine;
 
 namespace NOSMR;
 
-[BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
+[BepInPlugin(Guid, Name, Version)]
 public class Plugin : BaseUnityPlugin
 {
-    internal static Plugin? Instance { get; private set; }
-    internal static ManualLogSource? Log { get; private set; }
+    public const string Guid = PluginInfo.PLUGIN_GUID;
+    public const string Name = PluginInfo.PLUGIN_NAME;
+    public const string Version = PluginInfo.PLUGIN_VERSION;
+
+    internal static Plugin Instance = null!;
+    internal static ManualLogSource Log = null!;
 
     private NOSMRConfig _config = null!;
     private ModpackLoader _modpackLoader = null!;
@@ -78,7 +82,7 @@ public class Plugin : BaseUnityPlugin
         _debounceTimer?.Dispose();
         _debugLog?.Dispose();
 
-        Log?.LogInfo("[NOSMR] Unloaded");
+        Log.LogInfo("[NOSMR] Unloaded");
     }
 
     /// <summary>
@@ -95,17 +99,17 @@ public class Plugin : BaseUnityPlugin
 
             if (modlist.Count == 0)
             {
-                Log?.LogWarning("[NOSMR] No mods found in .nommpack files - not broadcasting");
+                Log.LogWarning("[NOSMR] No mods found in .nommpack files - not broadcasting");
                 _debugLog?.Warn("No mods found in .nommpack files");
                 return;
             }
 
             _publisher.Publish(modlist, _config.RequiredModSet);
-            Log?.LogInfo($"[NOSMR] Published {modlist.Count} mod(s) to A2S_RULES");
+            Log.LogInfo($"[NOSMR] Published {modlist.Count} mod(s) to A2S_RULES");
         }
         catch (Exception ex)
         {
-            Log?.LogError($"[NOSMR] Refresh failed: {ex}");
+            Log.LogError($"[NOSMR] Refresh failed: {ex}");
             _debugLog?.Error("Refresh failed", ex);
         }
     }

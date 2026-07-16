@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using Newtonsoft.Json;
 
 namespace NOSMR;
 
@@ -13,11 +12,6 @@ namespace NOSMR;
 /// </summary>
 public class ModpackLoader
 {
-    private static readonly JsonSerializerSettings SerializerSettings = new()
-    {
-        NullValueHandling = NullValueHandling.Ignore,
-    };
-
     private readonly FileLogger? _logger;
 
     public ModpackLoader(FileLogger? logger)
@@ -84,8 +78,7 @@ public class ModpackLoader
             using (var reader = new StreamReader(entryStream))
             {
                 var json = reader.ReadToEnd();
-                return JsonConvert.DeserializeObject<List<PackageReference>>(json, SerializerSettings)
-                    ?? new List<PackageReference>();
+                return PackageReference.DeserializeList(json);
             }
         }
     }
