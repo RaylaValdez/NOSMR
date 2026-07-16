@@ -1,4 +1,4 @@
-# NOSMR
+# NOSMR - Nuclear Option Server Mod Reporter
 
 Server-side BepInEx plugin that broadcasts your modlist via A2S_RULES so NOMM clients know what mods you're running.
 
