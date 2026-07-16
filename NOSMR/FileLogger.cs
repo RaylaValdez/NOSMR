@@ -43,7 +43,7 @@ public sealed class FileLogger : IDisposable
         }
         catch
         {
-            // Swallow logging errors — never crash the plugin over logging
+            // Swallow logging errors - never crash the plugin over logging
         }
         finally
         {

@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using BepInEx;
 using BepInEx.Logging;
+using UnityEngine;
 
 namespace NOSMR;
 
@@ -59,7 +60,7 @@ public class Plugin : BaseUnityPlugin
 
     private void Update()
     {
-        _publisher.ProcessPendingUpdates();
+        _publisher.ProcessPendingUpdates(Time.deltaTime);
     }
 
     private void OnDestroy()
@@ -69,7 +70,7 @@ public class Plugin : BaseUnityPlugin
         // Drain remaining queued updates so Clear() takes effect
         for (var i = 0; i < 10; i++)
         {
-            _publisher.ProcessPendingUpdates();
+            _publisher.ProcessPendingUpdates(0);
             Thread.Sleep(10);
         }
 
