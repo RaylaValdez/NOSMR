@@ -9,10 +9,11 @@ namespace NOSMR;
 
 /// <summary>
 /// Publishes modlist data to A2S_RULES via SteamGameServer.SetKeyValue().
-/// Data is split into 64-byte chunks to stay under the per-rule value limit
-/// observed in Nuclear Option's own rules (d0-d3 are each ~64 bytes).
-/// Keys: nomm_v (version), nomm_c (chunk count), nomm_d0..dN (data chunks),
-///       nomm_h0..hN (hash chunks), nomm_r0..rN (required mod chunks).
+/// Protocol v2: each mod is sent as its own rule key (nomm_d0..dN).
+/// Known mods: 3-byte SHA-256 hash prefix of "id|version".
+/// Unknown mods (null version): id + "UNK" suffix.
+/// Keys: nomm_v (version), nomm_c (mod count), nomm_d0..dN (per-mod data),
+///       nomm_h0..hN (data hash), nomm_r0..rN (required mods).
 /// </summary>
 public class A2SRulesPublisher
 {
@@ -24,7 +25,7 @@ public class A2SRulesPublisher
     private const string KeyHashPrefix = "nomm_h";
     private const string KeyRequiredPrefix = "nomm_r";
 
-    private const string ProtocolVersion = "1";
+    private const string ProtocolVersion = "2";
     private const double RepublishIntervalSeconds = 30.0;
 
     private readonly ConcurrentQueue<(string key, string? value)> _queue = new();
@@ -33,10 +34,10 @@ public class A2SRulesPublisher
     private double _republishCountdown;
     private bool _hasRepublishedOnce;
 
-    private string? _lastDataJson;
-    private string? _lastHash;
+    private List<PackageReference>? _lastModlist;
+    private string? _lastDataHash;
     private string? _lastRequired;
-    private int _lastChunkCount;
+    private int _lastModCount;
     private int _lastHashChunkCount;
     private int _lastRequiredChunkCount;
 
@@ -49,30 +50,30 @@ public class A2SRulesPublisher
         List<PackageReference> modlist,
         HashSet<string>? requiredMods = null)
     {
-        var dataJson = PackageReference.SerializeList(modlist);
-        var hash = ComputeHash(dataJson);
-
         var requiredIds = requiredMods != null && requiredMods.Count > 0
             ? string.Join(";", requiredMods)
             : null;
 
-        _logger?.Info($"Publishing modlist: {modlist.Count} mod(s), hash={hash.Substring(0, Math.Min(12, hash.Length))}...");
+        var dataJson = PackageReference.SerializeList(modlist);
+        var dataHash = ComputeDataHash(dataJson);
 
-        _lastDataJson = dataJson;
-        _lastHash = hash;
+        _logger?.Info($"Publishing modlist: {modlist.Count} mod(s), dataHash={dataHash.Substring(0, Math.Min(12, dataHash.Length))}...");
+
+        _lastModlist = modlist;
+        _lastDataHash = dataHash;
         _lastRequired = requiredIds;
 
-        EnqueueChunked(dataJson, hash, requiredIds);
+        EnqueuePerMod(modlist, dataHash, requiredIds);
     }
 
     public void Clear()
     {
-        if (_lastDataJson == null) return;
+        if (_lastModlist == null) return;
 
         _queue.Enqueue((KeyVersion, ""));
         _queue.Enqueue((KeyChunkCount, ""));
 
-        for (int i = 0; i < _lastChunkCount; i++)
+        for (int i = 0; i < _lastModCount; i++)
             _queue.Enqueue(($"{KeyDataPrefix}{i}", ""));
 
         for (int i = 0; i < _lastHashChunkCount; i++)
@@ -81,10 +82,10 @@ public class A2SRulesPublisher
         for (int i = 0; i < _lastRequiredChunkCount; i++)
             _queue.Enqueue(($"{KeyRequiredPrefix}{i}", ""));
 
-        _lastDataJson = null;
-        _lastHash = null;
+        _lastModlist = null;
+        _lastDataHash = null;
         _lastRequired = null;
-        _lastChunkCount = 0;
+        _lastModCount = 0;
         _lastHashChunkCount = 0;
         _lastRequiredChunkCount = 0;
         _logger?.Info("Queued NOMM key clear");
@@ -128,7 +129,7 @@ public class A2SRulesPublisher
             }
         }
 
-        if (_lastDataJson != null)
+        if (_lastModlist != null)
         {
             _republishCountdown -= deltaTime;
             if (_republishCountdown <= 0)
@@ -136,7 +137,7 @@ public class A2SRulesPublisher
                 _republishCountdown = RepublishIntervalSeconds;
                 if (_loggedOn)
                 {
-                    EnqueueChunked(_lastDataJson, _lastHash!, _lastRequired);
+                    EnqueuePerMod(_lastModlist, _lastDataHash!, _lastRequired);
                     if (!_hasRepublishedOnce)
                     {
                         _hasRepublishedOnce = true;
@@ -147,27 +148,51 @@ public class A2SRulesPublisher
         }
     }
 
-    private void EnqueueChunked(string dataJson, string hash, string? required)
+    private void EnqueuePerMod(List<PackageReference> modlist, string dataHash, string? required)
     {
-        var dataChunks = SplitIntoChunks(dataJson);
-        var hashChunks = SplitIntoChunks(hash);
+        var hashChunks = SplitIntoChunks(dataHash);
         var requiredChunks = required != null ? SplitIntoChunks(required) : new List<string>();
 
-        _lastChunkCount = dataChunks.Count;
+        _lastModCount = modlist.Count;
         _lastHashChunkCount = hashChunks.Count;
         _lastRequiredChunkCount = requiredChunks.Count;
 
         _queue.Enqueue((KeyVersion, ProtocolVersion));
-        _queue.Enqueue((KeyChunkCount, dataChunks.Count.ToString()));
+        _queue.Enqueue((KeyChunkCount, modlist.Count.ToString()));
 
-        for (int i = 0; i < dataChunks.Count; i++)
-            _queue.Enqueue(($"{KeyDataPrefix}{i}", dataChunks[i]));
+        for (int i = 0; i < modlist.Count; i++)
+        {
+            var mod = modlist[i];
+            string value;
+            if (mod.Version != null)
+            {
+                value = ComputeModHashPrefix(mod.Id, mod.Version.ToString());
+            }
+            else
+            {
+                value = mod.Id + "UNK";
+            }
+            _queue.Enqueue(($"{KeyDataPrefix}{i}", value));
+        }
 
         for (int i = 0; i < hashChunks.Count; i++)
             _queue.Enqueue(($"{KeyHashPrefix}{i}", hashChunks[i]));
 
         for (int i = 0; i < requiredChunks.Count; i++)
             _queue.Enqueue(($"{KeyRequiredPrefix}{i}", requiredChunks[i]));
+    }
+
+    private static string ComputeModHashPrefix(string id, string version)
+    {
+        using (var sha = SHA256.Create())
+        {
+            var input = id + "|" + version;
+            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
+            var sb = new StringBuilder(6);
+            for (int i = 0; i < 3; i++)
+                sb.Append(bytes[i].ToString("x2"));
+            return sb.ToString();
+        }
     }
 
     private static List<string> SplitIntoChunks(string value)
@@ -181,7 +206,7 @@ public class A2SRulesPublisher
         return chunks;
     }
 
-    private static string ComputeHash(string data)
+    private static string ComputeDataHash(string data)
     {
         using (var sha = SHA256.Create())
         {

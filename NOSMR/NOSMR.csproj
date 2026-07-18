@@ -1,16 +1,16 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net48</TargetFramework>
         <AssemblyName>NOSMR</AssemblyName>
         <RootNamespace>NOSMR</RootNamespace>
-        <Version>1.0.0</Version>
+        <Version>1.1.0</Version>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
 
         <BepInExPluginGuid>gerryofravine.nosmr</BepInExPluginGuid>
         <BepInExPluginName>NOSMR</BepInExPluginName>
-        <BepInExPluginVersion>1.0.0</BepInExPluginVersion>
+        <BepInExPluginVersion>1.1.0</BepInExPluginVersion>
 
         <RestoreAdditionalProjectSources>
             https://api.nuget.org/v3/index.json;
