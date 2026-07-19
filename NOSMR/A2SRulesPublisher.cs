@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Security.Cryptography;
-using System.Text;
 using Steamworks;
 
 namespace NOSMR;
@@ -17,15 +15,6 @@ namespace NOSMR;
 /// </summary>
 public class A2SRulesPublisher
 {
-    private const int ChunkSize = 64;
-
-    private const string KeyVersion = "nomm_v";
-    private const string KeyChunkCount = "nomm_c";
-    private const string KeyDataPrefix = "nomm_d";
-    private const string KeyHashPrefix = "nomm_h";
-    private const string KeyRequiredPrefix = "nomm_r";
-
-    private const string ProtocolVersion = "2";
     private const double RepublishIntervalSeconds = 30.0;
 
     private readonly ConcurrentQueue<(string key, string? value)> _queue = new();
@@ -55,7 +44,7 @@ public class A2SRulesPublisher
             : null;
 
         var dataJson = PackageReference.SerializeList(modlist);
-        var dataHash = ComputeDataHash(dataJson);
+        var dataHash = NommProtocol.ComputeDataHash(dataJson);
 
         _logger?.Info($"Publishing modlist: {modlist.Count} mod(s), dataHash={dataHash.Substring(0, Math.Min(12, dataHash.Length))}...");
 
@@ -70,17 +59,17 @@ public class A2SRulesPublisher
     {
         if (_lastModlist == null) return;
 
-        _queue.Enqueue((KeyVersion, ""));
-        _queue.Enqueue((KeyChunkCount, ""));
+        _queue.Enqueue((NommProtocol.KeyVersion, ""));
+        _queue.Enqueue((NommProtocol.KeyChunkCount, ""));
 
         for (int i = 0; i < _lastModCount; i++)
-            _queue.Enqueue(($"{KeyDataPrefix}{i}", ""));
+            _queue.Enqueue(($"{NommProtocol.KeyDataPrefix}{i}", ""));
 
         for (int i = 0; i < _lastHashChunkCount; i++)
-            _queue.Enqueue(($"{KeyHashPrefix}{i}", ""));
+            _queue.Enqueue(($"{NommProtocol.KeyHashPrefix}{i}", ""));
 
         for (int i = 0; i < _lastRequiredChunkCount; i++)
-            _queue.Enqueue(($"{KeyRequiredPrefix}{i}", ""));
+            _queue.Enqueue(($"{NommProtocol.KeyRequiredPrefix}{i}", ""));
 
         _lastModlist = null;
         _lastDataHash = null;
@@ -150,15 +139,15 @@ public class A2SRulesPublisher
 
     private void EnqueuePerMod(List<PackageReference> modlist, string dataHash, string? required)
     {
-        var hashChunks = SplitIntoChunks(dataHash);
-        var requiredChunks = required != null ? SplitIntoChunks(required) : new List<string>();
+        var hashChunks = NommProtocol.SplitIntoChunks(dataHash);
+        var requiredChunks = required != null ? NommProtocol.SplitIntoChunks(required) : new List<string>();
 
         _lastModCount = modlist.Count;
         _lastHashChunkCount = hashChunks.Count;
         _lastRequiredChunkCount = requiredChunks.Count;
 
-        _queue.Enqueue((KeyVersion, ProtocolVersion));
-        _queue.Enqueue((KeyChunkCount, modlist.Count.ToString()));
+        _queue.Enqueue((NommProtocol.KeyVersion, NommProtocol.ProtocolVersion));
+        _queue.Enqueue((NommProtocol.KeyChunkCount, modlist.Count.ToString()));
 
         for (int i = 0; i < modlist.Count; i++)
         {
@@ -166,55 +155,19 @@ public class A2SRulesPublisher
             string value;
             if (mod.Version != null)
             {
-                value = ComputeModHashPrefix(mod.Id, mod.Version.ToString());
+                value = NommProtocol.ComputeModHashPrefix(mod.Id, mod.Version.ToString());
             }
             else
             {
                 value = mod.Id + "UNK";
             }
-            _queue.Enqueue(($"{KeyDataPrefix}{i}", value));
+            _queue.Enqueue(($"{NommProtocol.KeyDataPrefix}{i}", value));
         }
 
         for (int i = 0; i < hashChunks.Count; i++)
-            _queue.Enqueue(($"{KeyHashPrefix}{i}", hashChunks[i]));
+            _queue.Enqueue(($"{NommProtocol.KeyHashPrefix}{i}", hashChunks[i]));
 
         for (int i = 0; i < requiredChunks.Count; i++)
-            _queue.Enqueue(($"{KeyRequiredPrefix}{i}", requiredChunks[i]));
-    }
-
-    private static string ComputeModHashPrefix(string id, string version)
-    {
-        using (var sha = SHA256.Create())
-        {
-            var input = id + "|" + version;
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
-            var sb = new StringBuilder(6);
-            for (int i = 0; i < 3; i++)
-                sb.Append(bytes[i].ToString("x2"));
-            return sb.ToString();
-        }
-    }
-
-    private static List<string> SplitIntoChunks(string value)
-    {
-        var chunks = new List<string>();
-        for (int i = 0; i < value.Length; i += ChunkSize)
-        {
-            int length = Math.Min(ChunkSize, value.Length - i);
-            chunks.Add(value.Substring(i, length));
-        }
-        return chunks;
-    }
-
-    private static string ComputeDataHash(string data)
-    {
-        using (var sha = SHA256.Create())
-        {
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(data));
-            var sb = new StringBuilder("sha256:");
-            foreach (var b in bytes)
-                sb.Append(b.ToString("x2"));
-            return sb.ToString();
-        }
+            _queue.Enqueue(($"{NommProtocol.KeyRequiredPrefix}{i}", requiredChunks[i]));
     }
 }

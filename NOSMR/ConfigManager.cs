@@ -24,8 +24,10 @@ public class NOSMRConfig
             "General",
             "Enabled",
             true,
-            "Enable NOMM modlist broadcasting via A2S_RULES.\n" +
-            "When disabled, NOMM keys are removed from the server query response."
+            "Enable NOMM modlist broadcasting.\n" +
+            "On dedicated servers: publishes via A2S_RULES.\n" +
+            "On client-hosted sessions: publishes via Steam lobby metadata.\n" +
+            "When disabled, NOMM keys are removed."
         );
 
         RequiredMods = config.Bind(

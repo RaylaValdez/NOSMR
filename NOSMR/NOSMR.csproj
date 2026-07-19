@@ -3,14 +3,14 @@
         <TargetFramework>net48</TargetFramework>
         <AssemblyName>NOSMR</AssemblyName>
         <RootNamespace>NOSMR</RootNamespace>
-        <Version>1.1.0</Version>
+        <Version>1.2.2</Version>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
 
         <BepInExPluginGuid>gerryofravine.nosmr</BepInExPluginGuid>
         <BepInExPluginName>NOSMR</BepInExPluginName>
-        <BepInExPluginVersion>1.1.0</BepInExPluginVersion>
+        <BepInExPluginVersion>1.2.2</BepInExPluginVersion>
 
         <RestoreAdditionalProjectSources>
             https://api.nuget.org/v3/index.json;
@@ -25,14 +25,20 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Reference Include="Assembly-CSharp"
+                   HintPath="$(ClientGameDir)\NuclearOption_Data\Managed\Assembly-CSharp.dll"
+                   Private="False"/>
+        <Reference Include="Mirage"
+                   HintPath="$(ClientGameDir)\NuclearOption_Data\Managed\Mirage.dll"
+                   Private="False"/>
         <Reference Include="UnityEngine"
-                   HintPath="$(GameDir)\NuclearOptionServer_Data\Managed\UnityEngine.dll"
+                   HintPath="$(ClientGameDir)\NuclearOption_Data\Managed\UnityEngine.dll"
                    Private="False"/>
         <Reference Include="UnityEngine.CoreModule"
-                   HintPath="$(GameDir)\NuclearOptionServer_Data\Managed\UnityEngine.CoreModule.dll"
+                   HintPath="$(ClientGameDir)\NuclearOption_Data\Managed\UnityEngine.CoreModule.dll"
                    Private="False"/>
         <Reference Include="com.rlabrecque.steamworks.net"
-                   HintPath="$(GameDir)\NuclearOptionServer_Data\Managed\com.rlabrecque.steamworks.net.dll"
+                   HintPath="$(ClientGameDir)\NuclearOption_Data\Managed\com.rlabrecque.steamworks.net.dll"
                    Private="False"/>
         <Reference Include="System.IO.Compression"
                    HintPath="$(GameDir)\NuclearOptionServer_Data\Managed\System.IO.Compression.dll"

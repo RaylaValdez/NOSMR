@@ -1,6 +1,8 @@
 <Project>
     <PropertyGroup>
-        <!-- Set this to your Nuclear Option installation directory -->
-        <GameDir>E:\Games\NuclearOption</GameDir>
+        <!-- Set this to your Nuclear Option dedicated server directory -->
+        <GameDir>E:\Games\NuclearOptionServer</GameDir>
+        <!-- Set this to your Nuclear Option client installation directory -->
+        <ClientGameDir>E:\Games\NuclearOption</ClientGameDir>
     </PropertyGroup>
 </Project>

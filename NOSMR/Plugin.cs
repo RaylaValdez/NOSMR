@@ -1,9 +1,15 @@
 using System;
+using System.Collections;
 using System.IO;
 using System.Threading;
+using GameSocketType = NuclearOption.Networking.SocketType;
 using BepInEx;
 using BepInEx.Logging;
+using Mirage;
+using Steamworks;
 using UnityEngine;
+using NuclearOption.Networking;
+using NuclearOption;
 
 namespace NOSMR;
 
@@ -19,14 +25,20 @@ public class Plugin : BaseUnityPlugin
 
     private NOSMRConfig _config = null!;
     private ModpackLoader _modpackLoader = null!;
-    private A2SRulesPublisher _publisher = null!;
+    private A2SRulesPublisher? _a2sPublisher;
+    private LobbyDataPublisher? _lobbyPublisher;
     private FileLogger? _debugLog;
 
     private FileSystemWatcher? _watcher;
     private System.Timers.Timer? _debounceTimer;
 
+    private ConnectRequest? _pendingRequest;
+
     private string PluginDir => Path.GetDirectoryName(Info.Location)!;
     private string ModpacksDir => Path.Combine(PluginDir, "modpacks");
+    private static string ConfigDir => Path.Combine(
+        Path.GetDirectoryName(Instance.Info.Location)!,
+        "..", "..", "config");
 
     private void Awake()
     {
@@ -41,7 +53,18 @@ public class Plugin : BaseUnityPlugin
                 _debugLog = new FileLogger(PluginDir);
 
             _modpackLoader = new ModpackLoader(_debugLog);
-            _publisher = new A2SRulesPublisher(_debugLog);
+
+            if (IsDedicatedServer())
+            {
+                _a2sPublisher = new A2SRulesPublisher(_debugLog);
+                Log.LogInfo("[NOSMR] Detected dedicated server - using A2S_RULES");
+            }
+            else
+            {
+                _lobbyPublisher = new LobbyDataPublisher(_debugLog);
+                _lobbyPublisher.RegisterCallbacks();
+                Log.LogInfo("[NOSMR] Detected client-hosted - using lobby metadata");
+            }
 
             Log.LogInfo("[NOSMR] Loaded");
 
@@ -54,6 +77,13 @@ public class Plugin : BaseUnityPlugin
             {
                 Log.LogInfo("[NOSMR] Broadcasting disabled via config");
             }
+
+            _pendingRequest = ConnectRequest.ReadFromFile(ConfigDir);
+            if (_pendingRequest != null)
+            {
+                Log.LogInfo($"[NOSMR] Connect request: {_pendingRequest.Host}:{_pendingRequest.Port} steamId={_pendingRequest.SteamId}");
+                StartCoroutine(WaitForMenuReady());
+            }
         }
         catch (Exception ex)
         {
@@ -64,17 +94,19 @@ public class Plugin : BaseUnityPlugin
 
     private void Update()
     {
-        _publisher.ProcessPendingUpdates(Time.deltaTime);
+        _a2sPublisher?.ProcessPendingUpdates(Time.deltaTime);
+        _lobbyPublisher?.ProcessPendingUpdates(Time.deltaTime);
     }
 
     private void OnDestroy()
     {
-        _publisher.Clear();
+        _a2sPublisher?.Clear();
+        _lobbyPublisher?.Clear();
 
-        // Drain remaining queued updates so Clear() takes effect
         for (var i = 0; i < 10; i++)
         {
-            _publisher.ProcessPendingUpdates(0);
+            _a2sPublisher?.ProcessPendingUpdates(0);
+            _lobbyPublisher?.ProcessPendingUpdates(0);
             Thread.Sleep(10);
         }
 
@@ -86,7 +118,7 @@ public class Plugin : BaseUnityPlugin
     }
 
     /// <summary>
-    /// Read .nommpack files and publish the modlist to A2S_RULES.
+    /// Read .nommpack files and publish the modlist to the appropriate transport.
     /// </summary>
     internal void Refresh()
     {
@@ -104,14 +136,104 @@ public class Plugin : BaseUnityPlugin
                 return;
             }
 
-            _publisher.Publish(modlist, _config.RequiredModSet);
-            Log.LogInfo($"[NOSMR] Published {modlist.Count} mod(s) to A2S_RULES");
+            _a2sPublisher?.Publish(modlist, _config.RequiredModSet);
+            _lobbyPublisher?.Publish(modlist, _config.RequiredModSet);
+
+            var target = _a2sPublisher != null ? "A2S_RULES" : "lobby metadata";
+            Log.LogInfo($"[NOSMR] Published {modlist.Count} mod(s) to {target}");
         }
         catch (Exception ex)
         {
             Log.LogError($"[NOSMR] Refresh failed: {ex}");
             _debugLog?.Error("Refresh failed", ex);
         }
+    }
+
+    private IEnumerator WaitForMenuReady()
+    {
+        while (MainMenu.State != MainMenu.LoadingState.Loaded)
+        {
+            if (MainMenu.ApplicationIsQuitting) yield break;
+            yield return null;
+        }
+
+        while (NetworkManagerNuclearOption.i == null)
+        {
+            if (MainMenu.ApplicationIsQuitting) yield break;
+            yield return null;
+        }
+
+        while (NetworkManagerNuclearOption.i.Client == null)
+        {
+            if (MainMenu.ApplicationIsQuitting) yield break;
+            yield return null;
+        }
+
+        DoConnect(_pendingRequest!);
+    }
+
+    private void DoConnect(ConnectRequest request)
+    {
+        try
+        {
+            GameSocketType socketType;
+            ConnectOptions options;
+
+            if (request.SteamId > 0)
+            {
+                socketType = GameSocketType.Steam;
+                options = new ConnectOptions(socketType, request.SteamId.ToString());
+            }
+            else if (IsSteamId(request.Host))
+            {
+                socketType = GameSocketType.Steam;
+                options = new ConnectOptions(socketType, request.Host);
+            }
+            else
+            {
+                socketType = GameSocketType.UDP;
+                options = new ConnectOptions(socketType, request.Host, request.Port);
+            }
+
+            if (!string.IsNullOrEmpty(request.Password))
+            {
+                options.Password = request.Password;
+            }
+
+            Log.LogInfo($"[NOSMR] Connecting via {socketType}...");
+            NetworkManagerNuclearOption.i.Client.Disconnected.RemoveListener(OnDisconnected);
+            NetworkManagerNuclearOption.i.Client.Disconnected.AddListener(OnDisconnected);
+            NetworkManagerNuclearOption.i.StartClient(options);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError($"[NOSMR] Failed to connect: {ex}");
+        }
+    }
+
+    private void OnDisconnected(ClientStoppedReason reason)
+    {
+        Log.LogInfo($"[NOSMR] Disconnected: {reason}");
+    }
+
+    private static bool IsDedicatedServer()
+    {
+        try
+        {
+            SteamGameServer.BLoggedOn();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsSteamId(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return false;
+        if (!ulong.TryParse(value, out var id)) return false;
+        return id > 1_000_000_000_000;
     }
 
     private void StartWatching()
