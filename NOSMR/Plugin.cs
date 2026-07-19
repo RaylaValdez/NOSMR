@@ -54,29 +54,7 @@ public class Plugin : BaseUnityPlugin
 
             _modpackLoader = new ModpackLoader(_debugLog);
 
-            if (IsDedicatedServer())
-            {
-                _a2sPublisher = new A2SRulesPublisher(_debugLog);
-                Log.LogInfo("[NOSMR] Detected dedicated server - using A2S_RULES");
-            }
-            else
-            {
-                _lobbyPublisher = new LobbyDataPublisher(_debugLog);
-                _lobbyPublisher.RegisterCallbacks();
-                Log.LogInfo("[NOSMR] Detected client-hosted - using lobby metadata");
-            }
-
             Log.LogInfo("[NOSMR] Loaded");
-
-            if (_config.Enabled.Value)
-            {
-                StartWatching();
-                Refresh();
-            }
-            else
-            {
-                Log.LogInfo("[NOSMR] Broadcasting disabled via config");
-            }
 
             _pendingRequest = ConnectRequest.ReadFromFile(ConfigDir);
             if (_pendingRequest != null)
@@ -84,11 +62,65 @@ public class Plugin : BaseUnityPlugin
                 Log.LogInfo($"[NOSMR] Connect request: {_pendingRequest.Host}:{_pendingRequest.Port} steamId={_pendingRequest.SteamId}");
                 StartCoroutine(WaitForMenuReady());
             }
+
+            StartCoroutine(DetectAndInitialize());
         }
         catch (Exception ex)
         {
             Log.LogError($"[NOSMR] Failed to initialize: {ex}");
             _debugLog?.Error("Failed to initialize", ex);
+        }
+    }
+
+    private IEnumerator DetectAndInitialize()
+    {
+        // Wait for Steam to be ready
+        while (!IsSteamReady())
+        {
+            yield return null;
+        }
+
+        if (IsDedicatedServer())
+        {
+            _a2sPublisher = new A2SRulesPublisher(_debugLog);
+            Log.LogInfo("[NOSMR] Detected dedicated server - using A2S_RULES");
+        }
+        else
+        {
+            _lobbyPublisher = new LobbyDataPublisher(_debugLog);
+            _lobbyPublisher.RegisterCallbacks();
+            Log.LogInfo("[NOSMR] Detected client-hosted - using lobby metadata");
+        }
+
+        if (_config.Enabled.Value)
+        {
+            StartWatching();
+            Refresh();
+        }
+        else
+        {
+            Log.LogInfo("[NOSMR] Broadcasting disabled via config");
+        }
+    }
+
+    private bool IsSteamReady()
+    {
+        try
+        {
+            SteamGameServer.BLoggedOn();
+            return true;
+        }
+        catch
+        {
+            try
+            {
+                SteamUser.GetSteamID();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 
