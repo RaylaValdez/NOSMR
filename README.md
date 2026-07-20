@@ -15,19 +15,6 @@ BepInEx/plugins/NOSMR/modpacks/
   my-pack.nommpack
 ```
 
-## Config
-
-`BepInEx/config/gerryofravine.nosmr.cfg`
-
-```ini
-[General]
-Enabled = true
-RequiredMods =
-
-[Debug]
-EnableDebugLog = false
-```
-
 ## Building
 
 ```
