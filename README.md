@@ -1,14 +1,16 @@
 # NOSMR - Nuclear Option Server Mod Reporter
 
-Server-side BepInEx plugin that broadcasts your modlist via A2S_RULES so NOMM clients know what mods you're running.
+Server-side BepInEx plugin that broadcasts your modlist via A2S_RULES so [NOMM](https://github.com/Combat787/NOMM) clients know what mods you're running.
+NOSMR also enables [NOMM](https://github.com/Combat787/NOMM)'s automatic connect features.
 
 ## Install
 
-Drop `NOSMR.dll` into `BepInEx/plugins/`. Create a `modpacks/` folder next to it and put your `.nommpack` files there.
+Create a folder called `NOSMR` in `BepInEx/plugins/`. Drop the `NOSMR.dll` in it.
+Create a folder inside `NOSMR` called `modpacks`, place only one .nommpack file at a time in that folder.
 
 ```
-BepInEx/plugins/NOSMR.dll
-BepInEx/plugins/modpacks/
+BepInEx/plugins/NOSMR/NOSMR.dll
+BepInEx/plugins/NOSMR/modpacks/
   my-pack.nommpack
 ```
 
