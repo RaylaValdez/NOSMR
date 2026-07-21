@@ -1,17 +1,18 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
-using System.Threading;
 
 namespace NOSMR;
 
 /// <summary>
-/// Thread-safe debug file logger. Writes to NOSMR/debug.log alongside the plugin.
+/// Thread-safe debug file logger. Buffers writes in a concurrent queue
+/// and flushes to disk periodically (call Flush) or on dispose.
 /// </summary>
 public sealed class FileLogger : IDisposable
 {
     private readonly string _logPath;
     private readonly StreamWriter _writer;
-    private readonly ReaderWriterLockSlim _lock = new();
+    private readonly ConcurrentQueue<string> _queue = new();
     private bool _disposed;
 
     public FileLogger(string pluginDirectory)
@@ -20,51 +21,45 @@ public sealed class FileLogger : IDisposable
         Directory.CreateDirectory(dir);
 
         _logPath = Path.Combine(dir, "debug.log");
-        _writer = new StreamWriter(_logPath, append: true) { AutoFlush = true };
+        _writer = new StreamWriter(_logPath, append: true) { AutoFlush = false };
     }
 
-    public void Info(string message) => Write("INFO", message);
-    public void Warn(string message) => Write("WARN", message);
-    public void Error(string message) => Write("ERROR", message);
-    public void Debug(string message) => Write("DEBUG", message);
+    public void Info(string message) => Enqueue("INFO", message);
+    public void Warn(string message) => Enqueue("WARN", message);
+    public void Error(string message) => Enqueue("ERROR", message);
+    public void Debug(string message) => Enqueue("DEBUG", message);
 
     public void Error(string message, Exception ex) =>
-        Write("ERROR", $"{message}: {ex.Message}\n{ex.StackTrace}");
+        Enqueue("ERROR", $"{message}: {ex.Message}\n{ex.StackTrace}");
 
-    private void Write(string level, string message)
+    private void Enqueue(string level, string message)
     {
         if (_disposed) return;
 
-        _lock.EnterWriteLock();
-        try
+        var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+        _queue.Enqueue($"[{timestamp}] [{level}] {message}");
+    }
+
+    public void Flush()
+    {
+        while (_queue.TryDequeue(out var line))
         {
-            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-            _writer.WriteLine($"[{timestamp}] [{level}] {message}");
+            try
+            {
+                _writer.WriteLine(line);
+            }
+            catch
+            {
+            }
         }
-        catch
-        {
-            // Swallow logging errors - never crash the plugin over logging
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        try { _writer.Flush(); } catch { }
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        _lock.EnterWriteLock();
-        try
-        {
-            _writer.Flush();
-            _writer.Dispose();
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-            _lock.Dispose();
-        }
+        Flush();
+        _writer.Dispose();
     }
 }

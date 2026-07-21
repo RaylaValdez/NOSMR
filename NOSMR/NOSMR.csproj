@@ -3,14 +3,14 @@
         <TargetFramework>net48</TargetFramework>
         <AssemblyName>NOSMR</AssemblyName>
         <RootNamespace>NOSMR</RootNamespace>
-        <Version>1.2.3</Version>
+        <Version>1.2.5</Version>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
 
         <BepInExPluginGuid>gerryofravine.nosmr</BepInExPluginGuid>
         <BepInExPluginName>NOSMR</BepInExPluginName>
-        <BepInExPluginVersion>1.2.3</BepInExPluginVersion>
+        <BepInExPluginVersion>1.2.5</BepInExPluginVersion>
 
         <RestoreAdditionalProjectSources>
             https://api.nuget.org/v3/index.json;

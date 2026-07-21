@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.IO;
-using System.Threading;
 using GameSocketType = NuclearOption.Networking.SocketType;
 using BepInEx;
 using BepInEx.Logging;
@@ -128,19 +127,15 @@ public class Plugin : BaseUnityPlugin
     {
         _a2sPublisher?.ProcessPendingUpdates(Time.deltaTime);
         _lobbyPublisher?.ProcessPendingUpdates(Time.deltaTime);
+        _debugLog?.Flush();
     }
 
     private void OnDestroy()
     {
         _a2sPublisher?.Clear();
         _lobbyPublisher?.Clear();
-
-        for (var i = 0; i < 10; i++)
-        {
-            _a2sPublisher?.ProcessPendingUpdates(0);
-            _lobbyPublisher?.ProcessPendingUpdates(0);
-            Thread.Sleep(10);
-        }
+        _a2sPublisher?.ProcessPendingUpdates(0);
+        _lobbyPublisher?.ProcessPendingUpdates(0);
 
         _watcher?.Dispose();
         _debounceTimer?.Dispose();

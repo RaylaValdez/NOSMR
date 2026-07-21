@@ -16,6 +16,7 @@ namespace NOSMR;
 public class A2SRulesPublisher
 {
     private const double RepublishIntervalSeconds = 30.0;
+    private const int MaxPerFrame = 3;
 
     private readonly ConcurrentQueue<(string key, string? value)> _queue = new();
     private readonly FileLogger? _logger;
@@ -46,8 +47,6 @@ public class A2SRulesPublisher
         var dataJson = PackageReference.SerializeList(modlist);
         var dataHash = NommProtocol.ComputeDataHash(dataJson);
 
-        _logger?.Info($"Publishing modlist: {modlist.Count} mod(s), dataHash={dataHash.Substring(0, Math.Min(12, dataHash.Length))}...");
-
         _lastModlist = modlist;
         _lastDataHash = dataHash;
         _lastRequired = requiredIds;
@@ -77,7 +76,6 @@ public class A2SRulesPublisher
         _lastModCount = 0;
         _lastHashChunkCount = 0;
         _lastRequiredChunkCount = 0;
-        _logger?.Info("Queued NOMM key clear");
     }
 
     public void ProcessPendingUpdates(double deltaTime)
@@ -87,12 +85,10 @@ public class A2SRulesPublisher
             var isLoggedOn = SteamGameServer.BLoggedOn();
             if (isLoggedOn && !_loggedOn)
             {
-                _logger?.Info("SteamGameServer.BLoggedOn() is now true");
                 _loggedOn = true;
             }
             else if (!isLoggedOn && _loggedOn)
             {
-                _logger?.Warn("SteamGameServer.BLoggedOn() returned false - game may be shutting down");
                 _loggedOn = false;
             }
         }
@@ -102,7 +98,8 @@ public class A2SRulesPublisher
 
         if (_loggedOn)
         {
-            while (_queue.TryDequeue(out var item))
+            int processed = 0;
+            while (processed < MaxPerFrame && _queue.TryDequeue(out var item))
             {
                 try
                 {
@@ -115,6 +112,7 @@ public class A2SRulesPublisher
                 {
                     _logger?.Error($"Failed to set A2S_RULES key '{item.key}'", ex);
                 }
+                processed++;
             }
         }
 

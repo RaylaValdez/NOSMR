@@ -21,17 +21,17 @@ internal static class NommProtocol
 
     internal const string ProtocolVersion = "2";
 
+    [ThreadStatic] private static SHA256? _sha;
+    private static SHA256 SHA => _sha ??= SHA256.Create();
+
     internal static string ComputeModHashPrefix(string id, string version)
     {
-        using (var sha = SHA256.Create())
-        {
-            var input = id + "|" + version;
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
-            var sb = new StringBuilder(6);
-            for (int i = 0; i < 3; i++)
-                sb.Append(bytes[i].ToString("x2"));
-            return sb.ToString();
-        }
+        var input = id + "|" + version;
+        var bytes = SHA.ComputeHash(Encoding.UTF8.GetBytes(input));
+        var sb = new StringBuilder(6);
+        for (int i = 0; i < 3; i++)
+            sb.Append(bytes[i].ToString("x2"));
+        return sb.ToString();
     }
 
     internal static List<string> SplitIntoChunks(string value)
@@ -47,13 +47,10 @@ internal static class NommProtocol
 
     internal static string ComputeDataHash(string data)
     {
-        using (var sha = SHA256.Create())
-        {
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(data));
-            var sb = new StringBuilder("sha256:");
-            foreach (var b in bytes)
-                sb.Append(b.ToString("x2"));
-            return sb.ToString();
-        }
+        var bytes = SHA.ComputeHash(Encoding.UTF8.GetBytes(data));
+        var sb = new StringBuilder("sha256:");
+        foreach (var b in bytes)
+            sb.Append(b.ToString("x2"));
+        return sb.ToString();
     }
 }

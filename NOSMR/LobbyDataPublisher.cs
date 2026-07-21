@@ -13,6 +13,8 @@ public class LobbyDataPublisher
 {
     private const double RepublishIntervalSeconds = 30.0;
     private const double LobbySearchIntervalSeconds = 5.0;
+    private const int MaxPerFrame = 3;
+    private const int MaxSearchAttempts = 3;
 
     private readonly ConcurrentQueue<(string key, string? value)> _queue = new();
     private readonly FileLogger? _logger;
@@ -35,6 +37,8 @@ public class LobbyDataPublisher
     private CallResult<LobbyMatchList_t>? _lobbyListResult;
     private Callback<LobbyCreated_t>? _lobbyCreatedCb;
     private Callback<LobbyEnter_t>? _lobbyEnterCb;
+    private bool _searchInFlight;
+    private int _searchAttempts;
 
     public LobbyDataPublisher(FileLogger? logger)
     {
@@ -47,7 +51,6 @@ public class LobbyDataPublisher
         _lobbyListResult = CallResult<LobbyMatchList_t>.Create(OnLobbyMatchList);
         _lobbyCreatedCb = Callback<LobbyCreated_t>.Create(OnLobbyCreated);
         _lobbyEnterCb = Callback<LobbyEnter_t>.Create(OnLobbyEnter);
-        _logger?.Info("Lobby callbacks registered");
     }
 
     public void Publish(
@@ -61,11 +64,10 @@ public class LobbyDataPublisher
         var dataJson = PackageReference.SerializeList(modlist);
         var dataHash = NommProtocol.ComputeDataHash(dataJson);
 
-        _logger?.Info($"Publishing modlist to lobby: {modlist.Count} mod(s), dataHash={dataHash.Substring(0, Math.Min(12, dataHash.Length))}...");
-
         _lastModlist = modlist;
         _lastDataHash = dataHash;
         _lastRequired = requiredIds;
+        _searchAttempts = 0;
 
         EnqueuePerMod(modlist, dataHash, requiredIds);
     }
@@ -84,15 +86,16 @@ public class LobbyDataPublisher
         _lastHashChunkCount = 0;
         _lastRequiredChunkCount = 0;
         _activeKeys.Clear();
-        _logger?.Info("Queued NOMM key clear from lobby");
     }
 
     public void ProcessPendingUpdates(double deltaTime)
     {
         if (!_lobbyReady)
         {
+            if (_searchAttempts >= MaxSearchAttempts) return;
+
             _lobbySearchCountdown -= deltaTime;
-            if (_lobbySearchCountdown <= 0)
+            if (_lobbySearchCountdown <= 0 && !_searchInFlight)
             {
                 FindMyLobby();
                 _lobbySearchCountdown = LobbySearchIntervalSeconds;
@@ -100,7 +103,8 @@ public class LobbyDataPublisher
             return;
         }
 
-        while (_queue.TryDequeue(out var item))
+        int processed = 0;
+        while (processed < MaxPerFrame && _queue.TryDequeue(out var item))
         {
             try
             {
@@ -119,6 +123,7 @@ public class LobbyDataPublisher
             {
                 _logger?.Error($"Failed to set lobby key '{item.key}'", ex);
             }
+            processed++;
         }
 
         if (_lastModlist != null)
@@ -145,6 +150,7 @@ public class LobbyDataPublisher
 
         try
         {
+            _searchInFlight = true;
             SteamMatchmaking.AddRequestLobbyListDistanceFilter(
                 ELobbyDistanceFilter.k_ELobbyDistanceFilterWorldwide);
             var handle = SteamMatchmaking.RequestLobbyList();
@@ -152,13 +158,19 @@ public class LobbyDataPublisher
         }
         catch (Exception ex)
         {
+            _searchInFlight = false;
             _logger?.Error("Failed to request lobby list", ex);
         }
     }
 
     private void OnLobbyMatchList(LobbyMatchList_t result, bool bIOFailure)
     {
-        if (result.m_nLobbiesMatching == 0) return;
+        _searchInFlight = false;
+        if (result.m_nLobbiesMatching == 0)
+        {
+            _searchAttempts++;
+            return;
+        }
 
         CSteamID myId;
         try { myId = SteamUser.GetSteamID(); }
@@ -180,6 +192,9 @@ public class LobbyDataPublisher
                 return;
             }
         }
+
+        if (!_lobbyReady)
+            _searchAttempts++;
     }
 
     private void OnLobbyCreated(LobbyCreated_t result)
@@ -188,6 +203,7 @@ public class LobbyDataPublisher
         {
             _lobbyId = new CSteamID(result.m_ulSteamIDLobby);
             _lobbyReady = true;
+            _searchAttempts = 0;
             _logger?.Info($"Lobby created: {_lobbyId}");
 
             if (_lastModlist != null)
@@ -210,6 +226,7 @@ public class LobbyDataPublisher
             {
                 _lobbyId = lobbyId;
                 _lobbyReady = true;
+                _searchAttempts = 0;
                 _logger?.Info($"Entered own lobby: {lobbyId}");
 
                 if (_lastModlist != null)
